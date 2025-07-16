@@ -5,111 +5,116 @@ from langchain_core.rate_limiters import InMemoryRateLimiter
 from schema.ResponseFormatter import LLMResponse
 from langchain_core.messages import BaseMessage
 from typing import List
-
-# Deprecated 
-# from langchain.memory import ConversationSummaryMemory
-# from langchain.chains import ConversationChain
-
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+import asyncio
 
 from tools.Tools import register_tools
 import textwrap
 from dotenv import load_dotenv
 
-# Migrated to new implementation for message history
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.runnables import Runnable
-from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableConfig
-from langchain_core.runnables.base import RunnableMap
-from langchain_core.runnables import RunnableLambda
+from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-load_dotenv();
+load_dotenv()
 
-# Step 1: Set up rate limiter (optional)
 rate_limiter = InMemoryRateLimiter(requests_per_second=1)
-
 memories = {}
 
-message : List[BaseMessage] = [
+message: List[BaseMessage] = [
     SystemMessage(content="You are a helpful code generator assistant."),
-    HumanMessage(content="Read the error log and tell me what the problem is.")
+    HumanMessage(content="Read the error log from tool and tell me what the problem is. Use the log path: /Users/ajmaharjan/Documents/langChain/errorAgents/resource log/mrf_error_only.log")
 ]
 
-# Step 2: Initialize LLM with parameters and structured output
 llm = ChatOllama(
     model="mistral:7b",
-    temperature=0.7, 
-    #stop = ["\nObservation"],
-    rate_limiter=rate_limiter  # or remove if not needed
+    temperature=0.7,
+    rate_limiter=rate_limiter
 )
 
-# Step 2: Define conversation logic (e.g. registered tools, prompt wrapper, etc.)
-base_chain: Runnable = register_tools(llm)
+tools = register_tools(llm)
 
-def get_memory(session_id: str):
+def get_memory(session_id: str) -> InMemoryChatMessageHistory:
     if session_id not in memories:
         memories[session_id] = InMemoryChatMessageHistory()
-        # Add system message once per session so AI "remembers" role
         memories[session_id].add_system_message(
             SystemMessage(content="You are a helpful code generator assistant.")
         )
     return memories[session_id]
 
-# Step 4: Wrap with RunnableWithMessageHistory
-# The runnable that will be wrapped by RunnableWithMessageHistory.
-# It is responsible for combining the chat history with the new messages.
-chain = (
-    RunnableLambda(lambda x: x["chat_history"] + x["messages"]) | base_chain
+agent = create_tool_calling_agent(
+    llm,
+    tools=tools,
+    prompt=ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful code generator assistant."),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ]),
 )
 
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
 conversation_chain = RunnableWithMessageHistory(
-    chain,
+    agent_executor,
     get_memory,
-    input_messages_key="messages",
+    input_messages_key="input",
     history_messages_key="chat_history",
 )
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
-def stream_response(messages: List[BaseMessage], session_id="user-123"):
+async def stream_response(messages: List[BaseMessage], session_id="user-123"):
     print("🤖 AI Response (streaming): ", end='', flush=True)
-    # The input to stream() should only be the new messages.
-    # The session_id is passed in the config, which RunnableWithMessageHistory uses.
-    stream = conversation_chain.stream(
-        {"messages": messages},
+    
+    # Extract last message content as user input
+    last_human_message = messages[-1].content if messages else ""
+    get_memory(session_id).messages.append(HumanMessage(content=last_human_message))
+    
+    stream = conversation_chain.astream(
+        {"input": last_human_message, "chat_history": get_memory(session_id).messages},
         config=RunnableConfig(configurable={"session_id": session_id})
     )
 
     full_response = ""
-    for chunk in stream:
-        # Check for tool calls in the chunk
-        if chunk.tool_calls:
-            for tool_call in chunk.tool_calls:
-                print(f"\n\nTool call: {tool_call['name']}()", flush=True)
-        # Print content if it exists
-        if chunk.content:
-            token = chunk.content
-            print(token, end='', flush=True)
-            full_response += token
+
+    async for chunk in stream:
+        # Debug: Show the whole chunk if needed
+        #print("\n📦 Chunk:", chunk)
+
+        tool_calls = chunk.get("tool_calls")
+        if tool_calls:
+            print("\n\n🔧 Tool calls:")
+            for tool_call in tool_calls:
+                print(f"▶ Tool: {tool_call['name']}")
+                print(f"▶ Args: {tool_call.get('args', {})}", flush=True)
+
+        content = chunk.get("content")
+        if content:
+            print(content, end='', flush=True)
+            full_response += content
 
     print()
-    print("-" * 80)  # Add a separator line for clarity
+    print("-" * 80)
+    get_memory(session_id).add_ai_message(full_response)
     return full_response
 
-# Step 4: Ask something
-stream_response(messages=message[1:], session_id="user-123")
+async def main():
+    print(await stream_response(messages=message, session_id="user-1234"))
+    print(f"history: {get_memory('user-1234').messages}")
 
-# Optional: continue further conversation
-while True:
-    user_input = input("👤 You: ")
-    stream_response(messages=[HumanMessage(content=user_input)], session_id="user-123")
+    while True:
+        try:
+            user_input = await asyncio.to_thread(input, "👤 You: ")
+            if user_input.lower() in ('exit', 'quit'):
+                break
+            await stream_response([HumanMessage(content=user_input)], "user-1234")
+            print(f"history: {get_memory('user-1234').messages}")
+        except (KeyboardInterrupt, EOFError):
+            break
+        finally:
+            print("🧹 Cleaning up memory...")
+            memories.clear()
 
-
-# def print_memory(session_id: str):
-#     history = get_memory(session_id)
-#     print(f"\n📚 Message history for session '{session_id}':")
-#     print(history)
-#     for i, msg in enumerate(history.messages):
-#         print(f"[{i}] {msg.type.upper()}: {msg.content}")
-        
-# print_memory("user-123");
-
+if __name__ == "__main__":
+    asyncio.run(main())
