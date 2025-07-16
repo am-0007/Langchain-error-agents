@@ -41,7 +41,7 @@ This project implements a sophisticated AI agent designed to analyze error logs,
 - **`main.py`**: The entry point of the application. It initializes the agent, tools, and other components, and starts the conversational loop.
 - **`agents/Agents.py`**: Defines the AI agent and its configuration.
 - **`tools/Tools.py`**: Implements the tools that the agent can use, such as reading files and summarizing logs.
-- **`elasticsearch/ElasticSearchConfig.py`**: Manages the connection to Elasticsearch.
+- **`elasticsearch/ElasticSearchConfig.py`**: Manages the connection to Elasticsearch. (Note: This feature is currently under development).
 - **`schema/ResponseFormatter.py`**: Defines the data structures for the agent's responses.
 - **`PromptTemplate/PromptTemplate.py`**: Contains the prompt templates used to guide the agent's behavior.
 - **`utils/streaming_utils.py`**: Provides utility functions for streaming responses from the agent.
@@ -54,7 +54,7 @@ This project implements a sophisticated AI agent designed to analyze error logs,
 - Python 3.10+
 - Pip
 - Ollama
-- Elasticsearch (optional)
+- Elasticsearch (optional, under development)
 
 ### Installation
 
@@ -108,7 +108,7 @@ Once the application is running, you can interact with the agent through the com
 **Example:**
 
 ```
-👤 You: Read the error log from tool and tell me what the problem is. Use the log path: /Users/ajmaharjan/Documents/langChain/errorAgents/resource log/mrf_error_only.log
+👤 You: Read the error log from tool and tell me what the problem is. Use the log path: resource log/mrf_error_only.log
 ```
 
 The agent will then read the specified log file, analyze its contents, and provide a summary of the errors it finds.
