@@ -4,8 +4,27 @@ from langchain_core.prompts import ChatPromptTemplate
 
 promptTemplate = {
     "summarize_error_log": ChatPromptTemplate.from_messages([
-        ("system", "You are a analyzer for error logs. Your task is to summarize the error log and provide insights."),
-        ("human", "Summarize this error log in bullet points, focusing on:\n- Error types\n- Frequency of errors\n- Critical errors\n- Any patterns\n\nError log:\n{error_log}.\n\n Generate response in such a way that your response is a prompt to the llm. Don't provide any solution or code. Just create prompt."),
+        ("system", "You are a analyzer for error logs. Your task is to summarize the error log and provide insights and create me a prompt that could be used by another llm."),
+        ("human", 
+         '''
+            Summarize the provided error log in clear and concise bullet points, with a focus on the following aspects:
+
+                - Types of errors encountered
+                - Frequency of each error type
+                - Identification of any critical errors
+                - Any observable patterns in the errors
+                - Error Log:
+                    {error_log}
+
+                Format your response as a prompt intended for another LLM. Do not include any solutions or code snippets.
+
+                At the end, briefly indicate the likely cause of the errors and where in the system or process they seem to originate from.
+                Also provide a summary of the log in a JSON format with keys "log_summary" and "log_contents". The "log_contents" should contain the original log content.
+                Ensure the JSON is well-formed and properly escaped.
+                            
+                Important: Just provide the prompt without any additional text or explanation.
+         '''
+         ),
         ("placeholder", "{chat_history}"),
         ("placeholder", "{agent_scratchpad}"),
     ]),

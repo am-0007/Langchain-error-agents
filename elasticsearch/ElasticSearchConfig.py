@@ -27,8 +27,7 @@ class ElasticSearchConfig:
         return client
 
     @staticmethod
-    def ge
-    t_es_instance() -> Elasticsearch:
+    def get_es_instance() -> Elasticsearch:
         """
         Creates and returns an instance of Elasticsearch using the configuration provided by ElasticSearchConfig.
 

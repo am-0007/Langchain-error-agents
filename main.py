@@ -16,6 +16,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.runnables import RunnableConfig
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from utils.streaming_utils import aprint_stream, astream_output
 
 load_dotenv()
 
@@ -63,39 +64,60 @@ conversation_chain = RunnableWithMessageHistory(
     history_messages_key="chat_history",
 )
 
+# @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
+# async def stream_response(messages: List[BaseMessage], session_id="user-123"):
+#     print("🤖 AI Response (streaming): ", end='', flush=True)
+    
+#     # Extract last message content as user input
+#     last_human_message = messages[-1].content if messages else ""
+#     get_memory(session_id).messages.append(HumanMessage(content=last_human_message))
+    
+#     stream = conversation_chain.astream(
+#         {"input": last_human_message, "chat_history": get_memory(session_id).messages},
+#         config=RunnableConfig(configurable={"session_id": session_id})
+#     )
+
+#     full_response = ""
+
+#     async for chunk in stream:
+#         # Debug: Show the whole chunk if needed
+#         #print("\n📦 Chunk:", chunk)
+
+#         tool_calls = chunk.get("tool_calls")
+#         if tool_calls:
+#             print("\n\n🔧 Tool calls:")
+#             for tool_call in tool_calls:
+#                 print(f"▶ Tool: {tool_call['name']}")
+#                 print(f"▶ Args: {tool_call.get('args', {})}", flush=True)
+
+#         content = chunk.get("content")
+#         if content:
+#             print(content, end='', flush=True)
+#             full_response += content
+
+#     print()
+#     print("-" * 80)
+#     get_memory(session_id).add_ai_message(full_response)
+#     return full_response
+
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 async def stream_response(messages: List[BaseMessage], session_id="user-123"):
     print("🤖 AI Response (streaming): ", end='', flush=True)
-    
-    # Extract last message content as user input
+
     last_human_message = messages[-1].content if messages else ""
     get_memory(session_id).messages.append(HumanMessage(content=last_human_message))
-    
-    stream = conversation_chain.astream(
-        {"input": last_human_message, "chat_history": get_memory(session_id).messages},
-        config=RunnableConfig(configurable={"session_id": session_id})
+
+    # Use your astream_output function to stream token by token
+    stream = astream_output(
+        agent_executor=conversation_chain,
+        input_data={"input": last_human_message, "chat_history": get_memory(session_id).messages},
+        config=RunnableConfig(configurable={"session_id": session_id}),
     )
 
-    full_response = ""
+    # Print stream and get full response
+    full_response = await aprint_stream(stream)
 
-    async for chunk in stream:
-        # Debug: Show the whole chunk if needed
-        #print("\n📦 Chunk:", chunk)
-
-        tool_calls = chunk.get("tool_calls")
-        if tool_calls:
-            print("\n\n🔧 Tool calls:")
-            for tool_call in tool_calls:
-                print(f"▶ Tool: {tool_call['name']}")
-                print(f"▶ Args: {tool_call.get('args', {})}", flush=True)
-
-        content = chunk.get("content")
-        if content:
-            print(content, end='', flush=True)
-            full_response += content
-
-    print()
-    print("-" * 80)
+    print("\n" + "-" * 80)
     get_memory(session_id).add_ai_message(full_response)
     return full_response
 

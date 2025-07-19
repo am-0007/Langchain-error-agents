@@ -10,6 +10,7 @@ from langchain_core.runnables import RunnableLambda
 from typing import List, Optional, Any, Dict
 from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import BaseTool
+from utils.streaming_utils import stream_chain_output
 
 from PromptTemplate.PromptTemplate import get_template
 
@@ -41,15 +42,18 @@ class LogReader:
             summarize_chain = (
                 summarize_prompt 
                 | llm 
-                | RunnableLambda(lambda x: getattr(x, 'content', x) if not isinstance(x, str) else x)
+                # | RunnableLambda(lambda x: getattr(x, 'content', x) if not isinstance(x, str) else x)
             )
-            summary = summarize_chain.invoke({"error_log": log_contents})
-            print(f"Summary log: {summary}")
-            print("-----" * 80)
+            #summary = summarize_chain.invoke({"error_log": log_contents})
+            summary = stream_chain_output(
+                summarize_chain,
+                input_data={"error_log": log_contents})
+            
+            # print(f"Summary log: {summary}")
+            # print("-----" * 80)
             return f"""
                 {{ 
-                    "log_summary": "{summary}",
-                    "log_contents": "{log_contents.replace('\"', '\\"').replace('\\n', '\\\\n')}"
+                    "log_summary": "{summary}"
                 }}
                 """.strip()
         return log_contents.strip()
@@ -60,7 +64,9 @@ def register_tools(llm: ChatOllama):
 
     @tool(description="Reads and summarizes error logs. Defaults to a specific log file if no path is provided.")
     def enhanced_log_reader(log_path: str = "") -> str:
-        return log_reader.enhanced_log_reader(log_path)
+        log_reader_tool = log_reader.enhanced_log_reader(log_path)
+        print("End of log reading")
+        return log_reader_tool
 
     return [enhanced_log_reader]
 
