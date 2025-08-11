@@ -38,7 +38,7 @@ class LogReader:
     def summarize_log(self, log_contents: str, llm: ChatOllama) -> str:
         """Standalone summarization function"""
         if llm and len(log_contents) > 500:
-            summarize_prompt = get_template("summarize_error_log", error_log=log_contents)
+            summarize_prompt = get_template("summarize_error_log")
             summarize_chain = (
                 summarize_prompt 
                 | llm 
@@ -51,11 +51,7 @@ class LogReader:
             
             # print(f"Summary log: {summary}")
             # print("-----" * 80)
-            return f"""
-                {{ 
-                    "log_summary": "{summary}"
-                }}
-                """.strip()
+            return summary
         return log_contents.strip()
 
  
@@ -65,7 +61,7 @@ def register_tools(llm: ChatOllama):
     @tool(description="Reads and summarizes error logs. Defaults to a specific log file if no path is provided.")
     def enhanced_log_reader(log_path: str = "") -> str:
         log_reader_tool = log_reader.enhanced_log_reader(log_path)
-        print("End of log reading")
+        print("-------------End of log reading----------------")
         return log_reader_tool
 
     return [enhanced_log_reader]

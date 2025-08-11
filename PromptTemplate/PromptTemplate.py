@@ -1,4 +1,4 @@
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 
 
@@ -28,18 +28,22 @@ promptTemplate = {
         ("placeholder", "{chat_history}"),
         ("placeholder", "{agent_scratchpad}"),
     ]),
+    "general_prompt" : ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful code generator assistant."),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="chat_history"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ]),
 }
 
-def get_template(template: str, error_log: str) -> ChatPromptTemplate:
+def get_template(template: str) -> ChatPromptTemplate:
     """
     Returns a ChatPromptTemplate for summarizing the error log.
 
-    :param error_log: The error log to be summarized.
+    :param template: The name of the template to retrieve. 
     :return: A ChatPromptTemplate configured for summarizing the error log.
     """
-    if not error_log:
-        raise ValueError("Error log cannot be empty.")
-
+    
     # Return the template (you format it later when calling LLM)
     result = promptTemplate.get(template)
     if result is None:

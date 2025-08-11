@@ -1,5 +1,6 @@
+import json
 from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from tenacity import retry, stop_after_attempt, wait_fixed
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from schema.ResponseFormatter import LLMResponse
@@ -13,7 +14,7 @@ import textwrap
 from dotenv import load_dotenv
 
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables import RunnableConfig, RunnableSerializable
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from utils.streaming_utils import aprint_stream, astream_output
@@ -44,6 +45,26 @@ def get_memory(session_id: str) -> InMemoryChatMessageHistory:
         )
     return memories[session_id]
 
+prompt=ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful code generator assistant."),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ])
+
+# define the agent runnable
+# agent : RunnableSerializable = (
+#     {
+#        "input" : lambda x : x["input"],
+#        "chat_history": lambda x: x["chat_history"],
+#        "agent_scratchpad": lambda x: x.get("agent_scratchpad", []),
+#     } 
+#     | prompt
+#     | llm.bind_tools(tools, tool_choice="auto")  # Bind tools to the LLM 
+# )
+
+# name2tool = {tool.name: tool.func for tool in tools} # type: ignore
+            
 agent = create_tool_calling_agent(
     llm,
     tools=tools,
@@ -64,6 +85,7 @@ conversation_chain = RunnableWithMessageHistory(
     history_messages_key="chat_history",
 )
 
+
 # @retry(stop=stop_after_attempt(3), wait=wait_fixed(2))
 # async def stream_response(messages: List[BaseMessage], session_id="user-123"):
 #     print("🤖 AI Response (streaming): ", end='', flush=True)
@@ -76,6 +98,8 @@ conversation_chain = RunnableWithMessageHistory(
 #         {"input": last_human_message, "chat_history": get_memory(session_id).messages},
 #         config=RunnableConfig(configurable={"session_id": session_id})
 #     )
+
+#     print(stream)
 
 #     full_response = ""
 
@@ -130,7 +154,7 @@ async def main():
             user_input = await asyncio.to_thread(input, "👤 You: ")
             if user_input.lower() in ('exit', 'quit'):
                 break
-            await stream_response([HumanMessage(content=user_input)], "user-1234")
+            #await stream_response([HumanMessage(content=user_input)], "user-1234")
             print(f"history: {get_memory('user-1234').messages}")
         except (KeyboardInterrupt, EOFError):
             break

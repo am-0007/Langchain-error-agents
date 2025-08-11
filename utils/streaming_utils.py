@@ -50,17 +50,17 @@ async def astream_output(
     async for event in agent_executor.astream_events(input_data, config=config, version="v1"):
         # print(f"\n🔄 Event: {event['event']}")
         event_type = event["event"]
-        #print("event_type", event_type)  # Uncomment for detailed event debugging
-        if event_type == "on_llm_stream":
+        # print("event_type:::: ", event_type)  # Uncomment for detailed event debugging
+        if event_type == "on_chat_model_stream":
             chunk = event.get("data", {}).get("chunk", {})
             content = chunk.get("content", "")
-            # print(content, end='', flush=True)
+            print(content, end='', flush=True)
             if content:
                 yield content
                 full_output.append(content)
                 await asyncio.sleep(0.02)
 
-        elif event_type == "on_agent_finish":
+        elif event_type == "on_chain_end":
             result = event.get("data", {}).get("output", "")
             if result and result not in "".join(full_output):
                 yield result

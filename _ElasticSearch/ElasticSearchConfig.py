@@ -1,0 +1,52 @@
+from anyio import Path
+from elasticsearch import Elasticsearch
+from dotenv import dotenv_values
+from pprint import pprint
+
+env_path = Path(__file__).parent.parent / ".env"   # go up one directory
+config = dotenv_values(env_path)
+
+
+class ElasticSearchConfig:
+    def __init__(self):
+        es_port = config.get("es-port")
+        self.ES_PORT = int(es_port) if es_port else 9200
+        self.DOMAIN = config.get("es-domain")
+        self.USERNAME = config.get("es-username")
+        self.ELASTIC_PASSWORD = config.get("es-password")
+        print(f"ElasticSearchConfig initialized with DOMAIN: {self.DOMAIN}, PORT: {self.ES_PORT}")
+        
+    def setup_elasticsearch(self) -> Elasticsearch:
+        print("Setting up Elasticsearch with the following configuration:")
+        if not self.DOMAIN or not self.USERNAME or not self.ELASTIC_PASSWORD:
+            raise ValueError("Elasticsearch config incomplete")
+        
+        client = Elasticsearch(
+            hosts=[{
+                "host": self.DOMAIN,
+                "port": self.ES_PORT,
+                "scheme": "http"  # important!
+            }],
+            basic_auth=(self.USERNAME, self.ELASTIC_PASSWORD)
+        )
+        print(f"Elasticsearch client created: {client}")
+        return client
+
+    @staticmethod
+    def get_es_instance() -> Elasticsearch:
+        """
+        Creates and returns an instance of Elasticsearch using the configuration provided by ElasticSearchConfig.
+
+        Returns:
+            Elasticsearch: An initialized Elasticsearch client instance.
+        """
+        config = ElasticSearchConfig()
+        return config.setup_elasticsearch()
+
+if __name__ == "__main__":
+    client = ElasticSearchConfig.get_es_instance()
+    try:
+        info = client.info()
+        pprint(info)
+    except Exception as e:
+        print("Connection failed:", e)
